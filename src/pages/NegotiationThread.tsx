@@ -1,5 +1,6 @@
-import { type FormEvent, useEffect, useState } from "react";
+import { type FormEvent, useState } from "react";
 import { useParams } from "react-router-dom";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "../lib/supabaseClient";
 
 export type CounterOffer = {
@@ -25,92 +26,108 @@ type Negotiation = {
   votes?: number;
 };
 
+async function fetchNegotiation(id?: string): Promise<Negotiation | null> {
+  if (!id) return null;
+  const { data, error } = await supabase
+    .from("negotiations")
+    .select("*")
+    .eq("id", id)
+    .single();
+  if (error) throw new Error(error.message);
+  return data;
+}
+async function fetchCounters(id?: string): Promise<CounterOffer[]> {
+  if (!id) return [];
+  const { data, error } = await supabase
+    .from("counter_offers")
+    .select("*")
+    .eq("negotiation_id", id)
+    .order("votes", { ascending: false });
+  if (error) throw new Error(error.message);
+  return data ?? [];
+}
+
 export default function NegotiationThread() {
   const { id } = useParams();
-  const [neg, setNeg] = useState<Negotiation | null>(null);
-  const [counters, setCounters] = useState<CounterOffer[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const queryClient = useQueryClient();
+
+  const {
+    data: neg,
+    isLoading: loadingNeg,
+    error: negError,
+  } = useQuery({
+    queryKey: ["negotiations", id],
+    queryFn: () => fetchNegotiation(id),
+    enabled: Boolean(id),
+  });
+  const {
+    data: counters,
+    isLoading: loadingCounters,
+    error: countersError,
+  } = useQuery({
+    queryKey: ["counter_offers", id],
+    queryFn: () => fetchCounters(id),
+    enabled: Boolean(id),
+  });
+
+  const voteNegotiation = useMutation({
+    mutationFn: async (delta: 1 | -1) => {
+      if (!neg) return;
+      const { error } = await supabase
+        .from("negotiations")
+        .update({ votes: (neg.votes ?? 0) + delta })
+        .eq("id", neg.id);
+      if (error) throw new Error(error.message);
+    },
+    onSuccess: () =>
+      queryClient.invalidateQueries({ queryKey: ["negotiations", id] }),
+  });
+
+  const voteCounter = useMutation({
+    mutationFn: async (args: {
+      counterId: string;
+      currentVotes: number;
+      delta: 1 | -1;
+    }) => {
+      const { counterId, currentVotes, delta } = args;
+      const { error } = await supabase
+        .from("counter_offers")
+        .update({ votes: currentVotes + delta })
+        .eq("id", counterId);
+      if (error) throw new Error(error.message);
+    },
+    onSuccess: () =>
+      queryClient.invalidateQueries({ queryKey: ["counter_offers", id] }),
+  });
 
   const [min, setMin] = useState<number>(0);
   const [max, setMax] = useState<number>(0);
   const [justification, setJustification] = useState("");
 
-  useEffect(() => {
-    let ignore = false;
-    async function load() {
-      setLoading(true);
-      const [{ data: n, error: e1 }, { data: cs, error: e2 }] =
-        await Promise.all([
-          supabase.from("negotiations").select("*").eq("id", id).single(),
-          supabase
-            .from("counter_offers")
-            .select("*")
-            .eq("negotiation_id", id)
-            .order("votes", { ascending: false }),
-        ]);
-      if (!ignore) {
-        if (e1) setError(e1.message);
-        else setNeg(n);
-        if (e2) setError(e2.message);
-        else setCounters(cs ?? []);
-        setLoading(false);
-      }
-    }
-    load();
-    const sub = supabase
-      .channel("public:counter_offers")
-      .on(
-        "postgres_changes",
-        {
-          event: "*",
-          schema: "public",
-          table: "counter_offers",
-          filter: `negotiation_id=eq.${id}`,
-        },
-        () => load()
-      )
-      .subscribe();
-    return () => {
-      ignore = true;
-      supabase.removeChannel(sub);
-    };
-  }, [id]);
+  const addCounter = useMutation({
+    mutationFn: async () => {
+      const { error } = await supabase.from("counter_offers").insert({
+        negotiation_id: id,
+        proposed_range_min: min,
+        proposed_range_max: max,
+        justification,
+      });
+      if (error) throw new Error(error.message);
+    },
+    onSuccess: () => {
+      setMin(0);
+      setMax(0);
+      setJustification("");
+      queryClient.invalidateQueries({ queryKey: ["counter_offers", id] });
+    },
+  });
 
-  async function voteOnNegotiation(delta: 1 | -1) {
-    if (!neg) return;
-    await supabase
-      .from("negotiations")
-      .update({ votes: (neg.votes ?? 0) + delta })
-      .eq("id", neg.id);
-  }
-  async function voteOnCounter(
-    counterId: string,
-    currentVotes: number,
-    delta: 1 | -1
-  ) {
-    await supabase
-      .from("counter_offers")
-      .update({ votes: currentVotes + delta })
-      .eq("id", counterId);
-  }
-  async function addCounter(e: FormEvent) {
-    e.preventDefault();
-    const { error } = await supabase.from("counter_offers").insert({
-      negotiation_id: id,
-      proposed_range_min: min,
-      proposed_range_max: max,
-      justification,
-    });
-    if (error) setError(error.message);
-    setMin(0);
-    setMax(0);
-    setJustification("");
-  }
-
-  if (loading) return <p>Loading...</p>;
-  if (error) return <p className="text-red-600">{error}</p>;
+  if (loadingNeg || loadingCounters) return <p>Loading...</p>;
+  if (negError)
+    return <p className="text-red-600">{(negError as Error).message}</p>;
   if (!neg) return <p>Not found</p>;
+  if (countersError)
+    return <p className="text-red-600">{(countersError as Error).message}</p>;
 
   return (
     <div className="space-y-6">
@@ -130,13 +147,13 @@ export default function NegotiationThread() {
             </p>
             <div className="flex items-center justify-end gap-2 mt-2">
               <button
-                onClick={() => voteOnNegotiation(1)}
+                onClick={() => voteNegotiation.mutate(1)}
                 className="px-2 py-1 border rounded"
               >
                 ▲
               </button>
               <button
-                onClick={() => voteOnNegotiation(-1)}
+                onClick={() => voteNegotiation.mutate(-1)}
                 className="px-2 py-1 border rounded"
               >
                 ▼
@@ -150,7 +167,7 @@ export default function NegotiationThread() {
       <div>
         <h3 className="font-semibold mb-2">Counter offers</h3>
         <div className="space-y-3">
-          {counters.map((c) => (
+          {(counters ?? []).map((c) => (
             <div key={c.id} className="rounded-md border bg-white p-3">
               <div className="flex items-center justify-between">
                 <p className="font-medium">
@@ -159,14 +176,26 @@ export default function NegotiationThread() {
                 </p>
                 <div className="flex items-center gap-2">
                   <button
-                    onClick={() => voteOnCounter(c.id, c.votes, 1)}
+                    onClick={() =>
+                      voteCounter.mutate({
+                        counterId: c.id,
+                        currentVotes: c.votes,
+                        delta: 1,
+                      })
+                    }
                     className="px-2 py-1 border rounded"
                   >
                     ▲
                   </button>
                   <span className="text-sm">{c.votes}</span>
                   <button
-                    onClick={() => voteOnCounter(c.id, c.votes, -1)}
+                    onClick={() =>
+                      voteCounter.mutate({
+                        counterId: c.id,
+                        currentVotes: c.votes,
+                        delta: -1,
+                      })
+                    }
                     className="px-2 py-1 border rounded"
                   >
                     ▼
@@ -180,7 +209,10 @@ export default function NegotiationThread() {
       </div>
 
       <form
-        onSubmit={addCounter}
+        onSubmit={(e: FormEvent) => {
+          e.preventDefault();
+          addCounter.mutate();
+        }}
         className="rounded-md border bg-white p-4 space-y-3"
       >
         <h4 className="font-semibold">Add a counter offer</h4>
@@ -207,8 +239,11 @@ export default function NegotiationThread() {
           value={justification}
           onChange={(e) => setJustification(e.target.value)}
         />
-        <button className="inline-flex items-center rounded-md bg-black px-4 py-2 text-white">
-          Submit counter
+        <button
+          disabled={addCounter.isPending}
+          className="inline-flex items-center rounded-md bg-black px-4 py-2 text-white"
+        >
+          {addCounter.isPending ? "Submitting..." : "Submit counter"}
         </button>
       </form>
     </div>

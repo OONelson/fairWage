@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { supabase } from "../lib/supabaseClient";
 
 export type Negotiation = {
@@ -13,33 +13,25 @@ export type Negotiation = {
   justification: string;
 };
 
+async function fetchNegotiations(): Promise<Negotiation[]> {
+  const { data, error } = await supabase
+    .from("negotiations")
+    .select("*")
+    .order("created_at", { ascending: false });
+  if (error) throw new Error(error.message);
+  return data ?? [];
+}
+
 export default function NegotiationsList() {
-  const [items, setItems] = useState<Negotiation[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const { data, isLoading, error } = useQuery({
+    queryKey: ["negotiations", "list"],
+    queryFn: fetchNegotiations,
+  });
 
-  useEffect(() => {
-    let ignore = false;
-    async function load() {
-      setLoading(true);
-      const { data, error } = await supabase
-        .from("negotiations")
-        .select("*")
-        .order("created_at", { ascending: false });
-      if (!ignore) {
-        if (error) setError(error.message);
-        else setItems(data ?? []);
-        setLoading(false);
-      }
-    }
-    load();
-    return () => {
-      ignore = true;
-    };
-  }, []);
+  if (isLoading) return <p>Loading...</p>;
+  if (error) return <p className="text-red-600">{(error as Error).message}</p>;
 
-  if (loading) return <p>Loading...</p>;
-  if (error) return <p className="text-red-600">{error}</p>;
+  const items = data ?? [];
 
   return (
     <div className="space-y-4">

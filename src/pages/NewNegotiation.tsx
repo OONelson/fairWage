@@ -1,23 +1,21 @@
 import { type FormEvent, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "../lib/supabaseClient";
 
 export default function NewNegotiation() {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const [jobTitle, setJobTitle] = useState("");
   const [location, setLocation] = useState("");
   const [yoe, setYoe] = useState<number>(3);
   const [min, setMin] = useState<number>(120000);
   const [max, setMax] = useState<number>(140000);
   const [justification, setJustification] = useState("");
-  const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  async function handleSubmit(e: FormEvent) {
-    e.preventDefault();
-    setError(null);
-    setLoading(true);
-    try {
+  const createNegotiation = useMutation({
+    mutationFn: async () => {
       const { data, error } = await supabase
         .from("negotiations")
         .insert({
@@ -30,13 +28,20 @@ export default function NewNegotiation() {
         })
         .select("id")
         .single();
-      if (error) throw error;
+      if (error) throw new Error(error.message);
+      return data;
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ["negotiations", "list"] });
       navigate(`/negotiations/${data!.id}`);
-    } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : String(err));
-    } finally {
-      setLoading(false);
-    }
+    },
+    onError: (err) => setError((err as Error).message),
+  });
+
+  function handleSubmit(e: FormEvent) {
+    e.preventDefault();
+    setError(null);
+    createNegotiation.mutate();
   }
 
   return (
@@ -91,10 +96,10 @@ export default function NewNegotiation() {
           required
         />
         <button
-          disabled={loading}
+          disabled={createNegotiation.isPending}
           className="inline-flex items-center rounded-md bg-black px-4 py-2 text-white"
         >
-          Create
+          {createNegotiation.isPending ? "Creating..." : "Create"}
         </button>
         {error && <p className="text-red-600 text-sm">{error}</p>}
       </form>
