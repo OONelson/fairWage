@@ -1,11 +1,6 @@
 import { type FormEvent, useState } from "react";
-import { useNavigate } from "react-router-dom";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { supabase } from "../lib/supabaseClient";
 
-export default function NewNegotiation() {
-  const navigate = useNavigate();
-  const queryClient = useQueryClient();
+const NewNegotiation = () => {
   const [jobTitle, setJobTitle] = useState("");
   const [location, setLocation] = useState("");
   const [yoe, setYoe] = useState<number>();
@@ -13,30 +8,6 @@ export default function NewNegotiation() {
   const [max, setMax] = useState<number>();
   const [justification, setJustification] = useState("");
   const [error, setError] = useState<string | null>(null);
-
-  const createNegotiation = useMutation({
-    mutationFn: async () => {
-      const { data, error } = await supabase
-        .from("negotiations")
-        .insert({
-          job_title: jobTitle,
-          location: location || null,
-          years_of_experience: yoe,
-          proposed_range_min: min,
-          proposed_range_max: max,
-          justification,
-        })
-        .select("id")
-        .single();
-      if (error) throw new Error(error.message);
-      return data;
-    },
-    onSuccess: (data) => {
-      queryClient.invalidateQueries({ queryKey: ["negotiations", "list"] });
-      navigate(`/negotiations/${data!.id}`);
-    },
-    onError: (err) => setError((err as Error).message),
-  });
 
   function handleSubmit(e: FormEvent) {
     e.preventDefault();
@@ -105,4 +76,5 @@ export default function NewNegotiation() {
       </form>
     </div>
   );
-}
+};
+export default NewNegotiation;

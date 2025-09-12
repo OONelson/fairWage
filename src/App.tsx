@@ -13,7 +13,7 @@ function App() {
               Negotiations
             </Link>
             <Link
-              to="/new"
+              to="/auth"
               className="inline-flex items-center rounded-md bg-black px-3 py-2 text-white hover:bg-gray-900"
             >
               Start a Negotiation
