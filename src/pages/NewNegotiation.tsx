@@ -8,9 +8,9 @@ export default function NewNegotiation() {
   const queryClient = useQueryClient();
   const [jobTitle, setJobTitle] = useState("");
   const [location, setLocation] = useState("");
-  const [yoe, setYoe] = useState<number>(3);
-  const [min, setMin] = useState<number>(120000);
-  const [max, setMax] = useState<number>(140000);
+  const [yoe, setYoe] = useState<number>();
+  const [min, setMin] = useState<number>();
+  const [max, setMax] = useState<number>();
   const [justification, setJustification] = useState("");
   const [error, setError] = useState<string | null>(null);
 
