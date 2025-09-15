@@ -1,4 +1,3 @@
-// components/ProtectedRoute.tsx
 import { type ReactNode } from "react";
 import { useAuth } from "../contexts/AuthContext";
 import AuthPage from "./../pages/Auth";
@@ -7,7 +6,7 @@ interface ProtectedRouteProps {
   children: ReactNode;
 }
 
-export default function ProtectedRoute({ children }: ProtectedRouteProps) {
+const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children }) => {
   const { user, isLoading } = useAuth();
 
   if (isLoading) {
@@ -23,4 +22,6 @@ export default function ProtectedRoute({ children }: ProtectedRouteProps) {
   }
 
   return <>{children}</>;
-}
+};
+
+export default ProtectedRoute;

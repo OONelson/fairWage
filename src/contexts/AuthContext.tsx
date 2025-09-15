@@ -1,4 +1,3 @@
-// contexts/AuthContext.tsx
 import React, {
   createContext,
   useContext,
@@ -7,7 +6,7 @@ import React, {
   type ReactNode,
 } from "react";
 import { supabase } from "../lib/supabaseClient";
-import type { User, Session, AuthError } from "@supabase/supabase-js";
+import type { Session, AuthError } from "@supabase/supabase-js";
 import { generateUsername } from "../utils/username";
 
 interface AuthUser {
