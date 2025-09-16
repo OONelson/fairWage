@@ -1,17 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "../lib/supabaseClient";
-
-export type Negotiation = {
-  id: string;
-  created_at: string;
-  user_id: string;
-  job_title: string;
-  location: string | null;
-  years_of_experience: number;
-  proposed_range_min: number;
-  proposed_range_max: number;
-  justification: string;
-};
+import type { Negotiation } from "../types/negotiationTypes";
 
 async function fetchNegotiations(): Promise<Negotiation[]> {
   const { data, error } = await supabase
@@ -19,7 +8,7 @@ async function fetchNegotiations(): Promise<Negotiation[]> {
     .select("*")
     .order("created_at", { ascending: false });
   if (error) throw new Error(error.message);
-  return data ?? [];
+  return (data ?? []) as Negotiation[];
 }
 
 export default function NegotiationsList() {

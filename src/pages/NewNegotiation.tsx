@@ -1,19 +1,30 @@
-import { type FormEvent, useState } from "react";
+import { type FormEvent } from "react";
+import useNegotiations from "../hooks/useNegotiations";
 
 const NewNegotiation = () => {
-  const [jobTitle, setJobTitle] = useState("");
-  const [location, setLocation] = useState("");
-  const [yoe, setYoe] = useState<number>();
-  const [min, setMin] = useState<number>();
-  const [max, setMax] = useState<number>();
-  const [justification, setJustification] = useState("");
-  const [error, setError] = useState<string | null>(null);
+  const {
+    createNegotiation,
+    jobTitle,
+    setJobTitle,
+    location,
+    setLocation,
+    yoe,
+    setYoe,
+    min,
+    setMin,
+    max,
+    setMax,
+    justification,
+    setJustification,
+    error,
+    setError,
+  } = useNegotiations();
 
-  function handleSubmit(e: FormEvent) {
+  const handleSubmit = (e: FormEvent) => {
     e.preventDefault();
     setError(null);
     createNegotiation.mutate();
-  }
+  };
 
   return (
     <div className="max-w-2xl">

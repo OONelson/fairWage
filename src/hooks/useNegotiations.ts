@@ -1,8 +1,17 @@
 import { useQueryClient, useMutation } from "@tanstack/react-query";
 import { supabase } from "../lib/supabaseClient";
 import { useNavigate } from "react-router-dom";
+import { useState } from "react";
 
-const Negotiations = () => {
+const useNegotiations = () => {
+  const [jobTitle, setJobTitle] = useState<string>("");
+  const [location, setLocation] = useState<string>("");
+  const [yoe, setYoe] = useState<number>();
+  const [min, setMin] = useState<number>();
+  const [max, setMax] = useState<number>();
+  const [justification, setJustification] = useState<string>("");
+  const [error, setError] = useState<string | null>(null);
+
   const navigate = useNavigate();
   const queryClient = useQueryClient();
 
@@ -32,5 +41,21 @@ const Negotiations = () => {
 
   return {
     createNegotiation,
+    jobTitle,
+    setJobTitle,
+    location,
+    setLocation,
+    yoe,
+    setYoe,
+    min,
+    setMin,
+    max,
+    setMax,
+    justification,
+    setJustification,
+    error,
+    setError,
   };
 };
+
+export default useNegotiations;
