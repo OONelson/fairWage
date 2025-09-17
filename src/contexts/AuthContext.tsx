@@ -8,15 +8,11 @@ import React, {
 import { supabase } from "../lib/supabaseClient";
 import type { Session, AuthError } from "@supabase/supabase-js";
 import { generateUsername } from "../utils/username";
-
-interface AuthUser {
-  id: string;
-  email: string;
-  username: string;
-}
+import { AuthCredentials } from "@/types/auth";
+import { createUserProfile } from "@/services/supabase/user";
 
 interface AuthContextType {
-  user: AuthUser | null;
+  user: AuthCredentials | null;
   session: Session | null;
   isLoading: boolean;
   signUp: (
@@ -38,7 +34,7 @@ interface AuthProviderProps {
 }
 
 export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
-  const [user, setUser] = useState<AuthUser | null>(null);
+  const [user, setUser] = useState<AuthCredentials | null>(null);
   const [session, setSession] = useState<Session | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
@@ -53,6 +49,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           username:
             session.user.user_metadata?.username ||
             generateUsername(session.user.email!),
+          password: "", // Password is not available from session, set as empty string
         });
       }
       setIsLoading(false);
@@ -71,6 +68,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           username:
             session.user.user_metadata?.username ||
             generateUsername(session.user.email!),
+          password: "", // Password is not available from session, set as empty string
         });
       } else {
         setUser(null);
@@ -85,6 +83,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     try {
       setIsLoading(true);
       const username = generateUsername(email);
+
+      await createUserProfile();
 
       return { error };
     } catch (error) {

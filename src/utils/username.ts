@@ -24,7 +24,7 @@ const animals = [
   "Fox",
 ];
 
-export function generateUsername(seed?: string) {
+export const generateUsername = (seed?: string) => {
   const s = seed ?? Math.random().toString(36).slice(2);
   let hash = 0;
   for (let i = 0; i < s.length; i++) {
@@ -35,4 +35,4 @@ export function generateUsername(seed?: string) {
   const ani = animals[Math.abs(Math.floor(hash / 97)) % animals.length];
   const num = Math.abs(Math.floor(hash / 389)) % 1000;
   return `${adj}${ani}${num.toString().padStart(2, "0")}`;
-}
+};
