@@ -86,14 +86,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       setIsLoading(true);
       const username = generateUsername(email);
 
-      const { error } = await supabase.auth.signUp({
-        email,
-        password,
-        options: {
-          data: { username },
-        },
-      });
-
       return { error };
     } catch (error) {
       return { error: error as AuthError };
