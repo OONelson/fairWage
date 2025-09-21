@@ -4,7 +4,7 @@ import type { AuthCredentials, AuthResponse } from "@/types/auth";
 
 // Sign up with anonymous handling
 export const signUp = async (
-  credentials: AuthCredentials
+  credentials: Omit<AuthCredentials, "id">
 ): Promise<AuthResponse> => {
   try {
     const anonymousUsername = generateUsername();
@@ -41,7 +41,7 @@ export const signUp = async (
 
 // Sign in
 export const signIn = async (
-  credentials: AuthCredentials
+  credentials: Omit<AuthCredentials, "id">
 ): Promise<AuthResponse> => {
   try {
     const { data, error } = await supabase.auth.signInWithPassword({

@@ -9,22 +9,27 @@ import { supabase } from "../lib/supabaseClient";
 import type { Session, AuthError } from "@supabase/supabase-js";
 import { generateUsername } from "../utils/username";
 import { AuthCredentials } from "@/types/auth";
-import { createUserProfile } from "@/services/supabase/user";
+import {
+  signUp,
+  signIn,
+  signOut as authSignOut,
+  getSession,
+} from "@/services/auth";
 
 interface AuthContextType {
   user: AuthCredentials | null;
   session: Session | null;
   isLoading: boolean;
-  signUp: (
+  handleSignUp: (
     email: string,
     password: string
-  ) => Promise<{ error: AuthError | null }>;
-  signIn: (
+  ) => Promise<{ error: AuthError | null; success?: boolean }>;
+  handleSignIn: (
     email: string,
     password: string
-  ) => Promise<{ error: AuthError | null }>;
-  signOut: () => Promise<void>;
-  resetPassword: (email: string) => Promise<{ error: AuthError | null }>;
+  ) => Promise<{ error: AuthError | null; success?: boolean }>;
+  handleSignOut: () => Promise<void>;
+  handleResetPassword: (email: string) => Promise<{ error: AuthError | null }>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -40,20 +45,29 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
   useEffect(() => {
     // Get initial session
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session);
-      if (session?.user) {
-        setUser({
-          id: session.user.id,
-          email: session.user.email!,
-          username:
-            session.user.user_metadata?.username ||
-            generateUsername(session.user.email!),
-          password: "", // Password is not available from session, set as empty string
-        });
+    const initializeAuth = async () => {
+      try {
+        const session = await getSession();
+        setSession(session);
+
+        if (session?.user) {
+          setUser({
+            id: session.user.id,
+            email: session.user.email!,
+            username:
+              session.user.user_metadata?.username ||
+              generateUsername(session.user.email!),
+            password: "",
+          });
+        }
+      } catch (error) {
+        console.error("Error initializing auth:", error);
+      } finally {
+        setIsLoading(false);
       }
-      setIsLoading(false);
-    });
+    };
+
+    initializeAuth();
 
     // Listen for auth changes
     const {
@@ -68,7 +82,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           username:
             session.user.user_metadata?.username ||
             generateUsername(session.user.email!),
-          password: "", // Password is not available from session, set as empty string
+          password: "",
         });
       } else {
         setUser(null);
@@ -79,43 +93,87 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     return () => subscription.unsubscribe();
   }, []);
 
-  const signUp = async (email: string, password: string) => {
+  const handleSignUp = async (email: string, password: string) => {
     try {
       setIsLoading(true);
       const username = generateUsername(email);
 
-      await createUserProfile();
-
-      return { error };
-    } catch (error) {
-      return { error: error as AuthError };
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const signIn = async (email: string, password: string) => {
-    try {
-      setIsLoading(true);
-      const { error } = await supabase.auth.signInWithPassword({
+      const response = await signUp({
         email,
         password,
+        username,
       });
 
-      return { error };
+      if (response.success) {
+        return { error: null, success: true };
+      } else {
+        return {
+          error: {
+            name: "SignupError",
+            message: response.error || "Unknown error during sign up",
+          } as AuthError,
+          success: false,
+        };
+      }
     } catch (error) {
-      return { error: error as AuthError };
+      return {
+        error: {
+          name: "SignUpError",
+          message:
+            error instanceof Error
+              ? error.message
+              : "Unknown error during sign up",
+        } as AuthError,
+        success: false,
+      };
     } finally {
       setIsLoading(false);
     }
   };
 
-  const signOut = async () => {
+  const handleSignIn = async (email: string, password: string) => {
     try {
       setIsLoading(true);
-      const { error } = await supabase.auth.signOut();
-      if (error) {
-        console.error("Error signing out:", error);
+
+      const response = await signIn({ email, password, username: "" });
+
+      if (response.success) {
+        return {
+          error: null,
+          success: true,
+        };
+      } else {
+        return {
+          error: {
+            name: "SignInError",
+            message: response.error || "Unknown error during sign in",
+          } as AuthError,
+          success: false,
+        };
+      }
+    } catch (error) {
+      return {
+        error: {
+          name: "SignInError",
+          message:
+            error instanceof Error
+              ? error.message
+              : "Unknown error during sign in",
+        } as AuthError,
+        success: false,
+      };
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleSignOut = async () => {
+    try {
+      setIsLoading(true);
+      const response = await authSignOut();
+
+      if (!response.success) {
+        console.error("Error signing out:", response.error);
       }
     } catch (error) {
       console.error("Error in signOut:", error);
@@ -124,7 +182,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     }
   };
 
-  const resetPassword = async (email: string) => {
+  const handleResetPassword = async (email: string) => {
     try {
       const { error } = await supabase.auth.resetPasswordForEmail(email, {
         redirectTo: `${window.location.origin}/reset-password`,
@@ -132,7 +190,15 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
       return { error };
     } catch (error) {
-      return { error: error as AuthError };
+      return {
+        error: {
+          name: "ResetPasswordError",
+          message:
+            error instanceof Error
+              ? error.message
+              : "Unknown error during password reset",
+        } as AuthError,
+      };
     }
   };
 
@@ -140,10 +206,10 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     user,
     session,
     isLoading,
-    signUp,
-    signIn,
-    signOut,
-    resetPassword,
+    handleSignUp,
+    handleSignIn,
+    handleSignOut,
+    handleResetPassword,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
